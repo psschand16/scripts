@@ -1,17 +1,18 @@
-How to Use:
-Save as install-icewm.sh
+###How to Use:
+##Save as install-icewm.sh
 
 Make executable:
 
-bash
-Copy
+##bash
+
 chmod +x install-icewm.sh
 Run with sudo:
 
-bash
-Copy
+##bash
+
 sudo ./install-icewm.sh
-Key Features:
+
+###Key Features:
 RAM Usage:
 
 IceWM: 15-30MB
@@ -64,8 +65,8 @@ Get themes from IceWM Themes
 Troubleshooting:
 Black screen on login:
 
-bash
-Copy
+###bash
+
 # Verify session config
 cat ~/.xsession  # Should show "exec icewm"
 
@@ -74,6 +75,6 @@ sudo systemctl restart x2goserver
 Missing apps:
 
 bash
-Copy
+
 sudo apt install --no-install-recommends <package>
 This setup leaves ~700MB free RAM for applications on a 1GB server. Let me know if you need adjustments! 🐧
