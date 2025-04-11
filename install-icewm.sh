@@ -38,9 +38,6 @@ sudo apt install -y -qq x2goserver x2goserver-xsession
 
 # [Rest of the script remains unchanged...]
 
-echo "fixing broken dependencies..."
-sudo apt --fix-broken install
-
 # Optimize for low RAM
 echo "Optimizing system..."
 # Create swap file (2GB)
