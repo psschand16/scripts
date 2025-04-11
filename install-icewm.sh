@@ -38,14 +38,20 @@ sudo apt install -y -qq x2goserver x2goserver-xsession
 
 # [Rest of the script remains unchanged...]
 
+
 # Optimize for low RAM
 echo "Optimizing system..."
-# Create swap file (2GB)
-sudo fallocate -l 2G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile >/dev/null
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+# Create swap file (2GB) only if it doesn't exist
+if [ ! -f /swapfile ]; then
+    echo "Creating swap file..."
+    sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=progress
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile >/dev/null
+    sudo swapon /swapfile
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+else
+    echo "Swap file already exists - skipping creation."
+fi
 
 # Disable unnecessary services
 echo "Disabling background services..."
