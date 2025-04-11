@@ -11,6 +11,10 @@ echo "#############################################"
 echo "Updating packages..."
 sudo apt update -qq && sudo apt upgrade -y -qq
 
+# Install essential tools first (FIX ADDED HERE)
+echo "Installing required dependencies..."
+sudo apt install -y -qq software-properties-common curl
+
 # Install core X11 and IceWM
 echo "Installing IceWM and X essentials..."
 sudo apt install -y -qq \
@@ -31,6 +35,8 @@ sudo add-apt-repository -y ppa:x2go/stable >/dev/null
 sudo apt update -qq
 echo "Installing X2Go..."
 sudo apt install -y -qq x2goserver x2goserver-xsession
+
+# [Rest of the script remains unchanged...]
 
 echo "fixing broken dependencies..."
 sudo apt --fix-broken install
