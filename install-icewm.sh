@@ -69,6 +69,8 @@ sudo apt install -y \
 
 # Configure firewall
 echo "Setting up firewall..."
+sudo apt install -y ufw  # ADDED UFW INSTALLATION
+
 sudo ufw allow 22
 sudo ufw allow 3389 2>/dev/null || true  # Ignore error if XRDP not installed
 sudo ufw --force enable
