@@ -1,25 +1,25 @@
 #!/bin/bash
-# MT5 Ultimate Hybrid Setup Script v2.1 - Complete Robust Version
+# MT5 Ultimate Hybrid Setup Script v2.3 - Ubuntu 22.04+ Compatible
 # Save as: mt5-ultimate-setup.sh
 
 # Configuration
 LOG_DIR="/var/log/mt5_setup"
 CONFIG_DIR="$HOME/.mt5_config"
-SWAP_SIZE="2G"                  # Swap file size (2G recommended for 1GB RAM)
-OPT_PKGS="xvfb lxde-core x2goserver python3 python3-pip"
+SWAP_SIZE="2G"
+OPT_PKGS="xvfb lxde-core x2goserver python3 python3-pip software-properties-common"
 WINE_PKGS="winehq-stable winetricks"
 DISABLED_SERVICES="snapd apache2 bluetooth cups avahi-daemon"
-X2GO_COMPRESSION="nopack"       # LAN: nopack, WAN: lzma
+X2GO_COMPRESSION="nopack"
 PYTHON_LIBS="MetaTrader5 pandas numpy"
-SWAP_RETRIES=3                  # Number of swap creation attempts
-SWAP_BACKOFF=5                  # Seconds between retries
+SWAP_RETRIES=3
+SWAP_BACKOFF=5
 
 # System Tuning
-VM_SWAPPINESS=10                 # 0-100 (lower = less swap usage)
-INODE_CACHE_PERCENT=50           # 50-100 (lower = prioritize file cache)
-MAX_LOG_DAYS=7                   # Auto-delete logs older than X days
+VM_SWAPPINESS=10
+INODE_CACHE_PERCENT=50
+MAX_LOG_DAYS=7
 
-# Color Definitions
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -50,18 +50,13 @@ error() {
 tune_system() {
     header "Tuning System Performance"
     
-    # Kernel parameters
     sudo sysctl -w vm.swappiness=$VM_SWAPPINESS
     sudo sysctl -w vm.vfs_cache_pressure=$INODE_CACHE_PERCENT
     echo "vm.swappiness=$VM_SWAPPINESS" | sudo tee -a /etc/sysctl.conf
     echo "vm.vfs_cache_pressure=$INODE_CACHE_PERCENT" | sudo tee -a /etc/sysctl.conf
 
-    # Swap configuration with retry logic
     header "Configuring Swap Space"
-    if [ -f "/swapfile" ]; then
-        sudo swapoff /swapfile 2>/dev/null
-        sudo rm -f /swapfile || error "Failed to remove old swapfile"
-    fi
+    [ -f "/swapfile" ] && sudo swapoff /swapfile 2>/dev/null && sudo rm -f /swapfile
 
     for ((i=1; i<=SWAP_RETRIES; i++)); do
         if sudo fallocate -l "$SWAP_SIZE" /swapfile 2>/dev/null; then
@@ -72,7 +67,7 @@ tune_system() {
             swap_mb=$((${SWAP_SIZE%G}*1024))
             sudo dd if=/dev/zero of=/swapfile bs=1M count=$swap_mb status=none
             [ $? -eq 0 ] && break
-            [ $i -eq $SWAP_RETRIES ] && error "Swap creation failed after $SWAP_RETRIES attempts"
+            [ $i -eq SWAP_RETRIES ] && error "Swap creation failed"
             sleep $SWAP_BACKOFF
         fi
     done
@@ -82,7 +77,6 @@ tune_system() {
     sudo swapon /swapfile || error "Swap activation failed"
     echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
-    # Disable unnecessary services
     for service in $DISABLED_SERVICES; do
         if systemctl list-unit-files | grep -q "$service.service"; then
             sudo systemctl stop "$service" 2>/dev/null
@@ -91,7 +85,6 @@ tune_system() {
         fi
     done
 
-    # Schedule log rotation
     (crontab -l 2>/dev/null; echo "0 3 * * * find $LOG_DIR -type f -mtime +$MAX_LOG_DAYS -delete") | crontab -
 }
 
@@ -99,23 +92,25 @@ tune_system() {
 install_dependencies() {
     header "Installing System Packages"
     
-    # Add WineHQ repository
-    sudo dpkg --add-architecture i386
-    wget -qO- https://dl.winehq.org/wine-builds/winehq.key | sudo apt-key add - || error "WineHQ key add failed"
-    sudo apt-add-repository "deb https://dl.winehq.org/wine-builds/ubuntu/ $(lsb_release -cs) main" || error "Repo add failed"
+    # Install core tools first
+    sudo apt update
+    sudo apt install -y curl gnupg2 ca-certificates $OPT_PKGS || error "Core tools install failed"
 
-    # Update with retry logic
+    # Add WineHQ repository (modern method)
+    header "Adding WineHQ Repository"
+    sudo dpkg --add-architecture i386
+    curl -fsSL https://dl.winehq.org/wine-builds/winehq.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/winehq.gpg
+    sudo add-apt-repository -y "deb https://dl.winehq.org/wine-builds/ubuntu/ $(lsb_release -cs) main" || error "Repo add failed"
+
     for i in {1..3}; do
         sudo apt update && break
         [ $i -eq 3 ] && error "Failed to update packages"
-        sleep $((i*5))
+        sleep 5
     done
 
-    # Install packages
-    sudo apt install -y --no-install-recommends $OPT_PKGS $WINE_PKGS || error "Package install failed"
+    sudo apt install -y --install-recommends $WINE_PKGS || error "Package install failed"
     sudo apt --fix-broken install -y || error "Dependency fix failed"
     
-    # Cleanup
     sudo apt autoremove -y
     sudo apt clean
     sudo rm -rf /var/lib/apt/lists/*
@@ -132,11 +127,9 @@ configure_mt5() {
     wineboot -i &>/dev/null
     winetricks -q corefonts || error "Winetricks corefonts failed"
 
-    # Install MT5
     wget -qO "$CONFIG_DIR/mt5_installer.exe" "https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe" || error "MT5 download failed"
     wine "$CONFIG_DIR/mt5_installer.exe" &>/dev/null || error "MT5 installation failed"
 
-    # Desktop shortcut
     echo "[Desktop Entry]
 Name=MetaTrader 5 (Hybrid)
 Exec=env DISPLAY=:0 wine \"C:\Program Files\MetaTrader 5\terminal64.exe\"
@@ -153,7 +146,6 @@ setup_python() {
     source "$CONFIG_DIR/pyenv/bin/activate"
     pip install --no-cache-dir $PYTHON_LIBS || error "Python package install failed"
     
-    # Sample trading script
     echo 'import MetaTrader5 as mt5
 import logging
 import os
@@ -189,7 +181,7 @@ final_cleanup() {
     sudo chown -R "$USER":"$USER" "$CONFIG_DIR"
 }
 
-# Main Execution Flow
+# Main Execution
 init_setup
 tune_system
 install_dependencies
@@ -197,12 +189,11 @@ configure_mt5
 setup_python
 final_cleanup
 
-# Completion Message
 header "Installation Complete"
 echo -e "${GREEN}System Ready for Hybrid MT5 Operation${NC}"
-echo -e "• Swap File: ${SWAP_SIZE} | Python Env: ${CONFIG_DIR}/pyenv"
-echo -e "• MT5 Prefix: ${WINEPREFIX} | Logs: ${LOG_DIR}"
+echo -e "• Swap: ${SWAP_SIZE} | Python: ${CONFIG_DIR}/pyenv"
+echo -e "• MT5: ${WINEPREFIX} | Logs: ${LOG_DIR}"
 echo -e "\n${YELLOW}Next Steps:${NC}"
-echo "1. GUI Access: Use X2Go with ${X2GO_COMPRESSION} compression"
-echo "2. Automation: Edit ${CONFIG_DIR}/mt5_trader.py"
-echo "3. Scheduling: Add to crontab: */5 * * * * ${CONFIG_DIR}/pyenv/bin/python ${CONFIG_DIR}/mt5_trader.py"
+echo "1. Connect via X2Go with compression: ${X2GO_COMPRESSION}"
+echo "2. Edit trading script: ${CONFIG_DIR}/mt5_trader.py"
+echo "3. Schedule jobs: crontab -e"
