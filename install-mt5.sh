@@ -49,9 +49,20 @@ export WINEDEBUG=-all
 export DISPLAY=:99
 wineboot -u 2>/dev/null
 
-# Install Windows components
+# Replace the original winetricks command with:
 echo "[6/7] Installing runtime dependencies..."
-winetricks -q corefonts vcrun2019 dotnet48 2>/dev/null
+{
+    # Download VC++ 2019 manually with retries
+    if [ ! -f "$HOME/.cache/winetricks/vcrun2019/vc_redist.x64.exe" ]; then
+        mkdir -p "$HOME/.cache/winetricks/vcrun2019"
+        wget -t 3 -O "$HOME/.cache/winetricks/vcrun2019/vc_redist.x64.exe" \
+            "https://download.visualstudio.microsoft.com/download/pr/9b3476ff-6d0a-4ffd-9e17-3d9d6c7d9b9a/9C1FEA6A62DB72A9A4E4BD38FE79A3DFE5750B6A1A087DBDADB1B5F934B3AD6D/VC_redist.x64.exe"
+    fi
+    
+    # Install dependencies with reduced verbosity
+    winetricks -q --force corefonts vcrun2019 >/dev/null 2>&1
+    wineserver -k  # Cleanup wine processes
+}
 
 # Start virtual display
 echo "[7/7] Launching Xvfb..."
